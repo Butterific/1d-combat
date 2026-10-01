@@ -22,8 +22,6 @@
             display: block;
             width: 100vw;
             height: 100vh;
-            border: 1px solid #fff;
-            box-sizing: border-box;
         }
     </style>
 </head>
@@ -179,19 +177,78 @@
             if (!analyser) return;
             analyser.getByteFrequencyData(dataArray);
             const progress = e.duration ? Math.min(e.currentTime / e.duration, 1) : 0;
-            const barColor = `rgba(255, ${Math.round(165 * (1 - progress))}, 0, 0.58)`;
-            const barWidth = canvas.width / bufferLength;
+            const barColor = `rgb(255, ${Math.round(165 * (1 - progress))}, 0)`;
+            const inset = 0;
+            const radius = Math.min(18, canvas.width / 4, canvas.height / 4);
+            const width = canvas.width - inset * 2;
+            const height = canvas.height - inset * 2;
+            const straightWidth = width - radius * 2;
+            const straightHeight = height - radius * 2;
+            const perimeter = straightWidth * 2 + straightHeight * 2 + Math.PI * radius * 2;
+            const barDepth = Math.min(canvas.width, canvas.height) * 0.12;
+            const minimumDepth = 10;
+            const barCount = 128;
+            const barsPerSide = barCount / 4;
+            const pointOnFrame = (distance) => {
+                let remaining = distance % perimeter;
+                const top = straightWidth;
+                const topRight = top + Math.PI * radius / 2;
+                const right = topRight + straightHeight;
+                const bottomRight = right + Math.PI * radius / 2;
+                const bottom = bottomRight + straightWidth;
+                const bottomLeft = bottom + Math.PI * radius / 2;
+                const left = bottomLeft + straightHeight;
+                const topLeft = left + Math.PI * radius / 2;
+
+                if (remaining <= top) return { x: inset + radius + remaining, y: inset };
+                remaining -= top;
+                if (remaining <= Math.PI * radius / 2) {
+                    const angle = -Math.PI / 2 + remaining / radius;
+                    return { x: inset + width - radius + Math.cos(angle) * radius, y: inset + radius + Math.sin(angle) * radius };
+                }
+                remaining -= Math.PI * radius / 2;
+                if (remaining <= straightHeight) return { x: inset + width, y: inset + radius + remaining };
+                remaining -= straightHeight;
+                if (remaining <= Math.PI * radius / 2) {
+                    const angle = remaining / radius;
+                    return { x: inset + width - radius + Math.cos(angle) * radius, y: inset + height - radius + Math.sin(angle) * radius };
+                }
+                remaining -= Math.PI * radius / 2;
+                if (remaining <= straightWidth) return { x: inset + width - radius - remaining, y: inset + height };
+                remaining -= straightWidth;
+                if (remaining <= Math.PI * radius / 2) {
+                    const angle = Math.PI / 2 + remaining / radius;
+                    return { x: inset + radius + Math.cos(angle) * radius, y: inset + height - radius + Math.sin(angle) * radius };
+                }
+                remaining -= Math.PI * radius / 2;
+                if (remaining <= straightHeight) return { x: inset, y: inset + height - radius - remaining };
+                remaining -= straightHeight;
+                const angle = Math.PI + remaining / radius;
+                return { x: inset + radius + Math.cos(angle) * radius, y: inset + radius + Math.sin(angle) * radius };
+            };
+
             ctx.beginPath();
-            for (let i = 0; i < bufferLength; i++) {
-                const spectrumIndex = Math.min(i, bufferLength - 1 - i);
-                const barHeight = (dataArray[spectrumIndex] / 255) * (canvas.height * 0.4);
-                const x = Math.floor(i * barWidth);
-                const nextX = Math.ceil((i + 1) * barWidth);
-                const y = canvas.height - barHeight;
-                ctx.rect(x, y, nextX - x, barHeight);
+            for (let i = 0; i < barCount; i++) {
+                const start = pointOnFrame(i * perimeter / barCount);
+                const end = pointOnFrame((i + 1) * perimeter / barCount);
+                const patternIndex = i % barsPerSide;
+                const signal = (dataArray[patternIndex] + dataArray[patternIndex + barsPerSide] + dataArray[patternIndex + barsPerSide * 2] + dataArray[patternIndex + barsPerSide * 3]) / 4;
+                const depth = minimumDepth + (signal / 255) * barDepth;
+                const startLength = Math.hypot(start.x - canvas.width / 2, start.y - canvas.height / 2) || 1;
+                const endLength = Math.hypot(end.x - canvas.width / 2, end.y - canvas.height / 2) || 1;
+                const startInner = { x: start.x + (canvas.width / 2 - start.x) / startLength * depth, y: start.y + (canvas.height / 2 - start.y) / startLength * depth };
+                const endInner = { x: end.x + (canvas.width / 2 - end.x) / endLength * depth, y: end.y + (canvas.height / 2 - end.y) / endLength * depth };
+                ctx.moveTo(start.x, start.y);
+                ctx.lineTo(end.x, end.y);
+                ctx.lineTo(endInner.x, endInner.y);
+                ctx.lineTo(startInner.x, startInner.y);
+                ctx.closePath();
             }
             ctx.fillStyle = barColor;
+            ctx.shadowBlur = 18;
+            ctx.shadowColor = barColor;
             ctx.fill();
+            ctx.shadowBlur = 0;
         }
     </script>
 </body>
