@@ -28,24 +28,12 @@
     </style>
 </head>
 <body>
+    <button onclick="Music.play();">start music</button>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
     <script>   
-        // setup the game canvas
-        const canvass = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
+        // audio engine (was compacted by ai)
+        let c,e=new Audio('Rift-breaker-tds.mp3'),a=(m,t=0)=>{e.pause();e.currentTime=t;if(m)e.play()};window.addEventListener('click',()=>{if(!c){c=new AudioContext();c.createMediaElementSource(e).connect(c.destination);if(e.dataset.q)a(1)}},{once:true});const Music={play:()=>!c?e.dataset.q=1:(c.resume(),e.play()),pause:()=>e.pause(),stop:()=>a(0),restart:()=>a(1)};
 
-        function resizeCanvas() {
-            const pixelRatio = window.devicePixelRatio || 1;
-            const width = window.innerWidth;
-            const height = window.innerHeight;
-
-            canvass.width = Math.floor(width * pixelRatio);
-            canvass.height = Math.floor(height * pixelRatio);
-            ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-        }
-
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
     </script>
     <script>   
         // setup the game canvas
