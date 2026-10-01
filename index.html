@@ -31,65 +31,210 @@
      <script>
         // laser attacks 
         const lasers = [];
+        const laserWarnings = [];
+        const laserWarningDuration = 700;
+        const laserExpandDuration = 1000;
         function randomLaserAttack() {
             const side = Math.floor(Math.random() * 4);
-            const speed = 4 + Math.random() * 2;
-            let x, y, vx, vy;
+            let coordinate;
             switch (side) {
                 case 0: // top
-                    x = Math.random() * canvas.width;
-                    y = -20;
-                    vx = 0;
-                    vy = speed;
+                    coordinate = Math.random() * canvas.width;
                     break;
                 case 1: // right
-                    x = canvas.width + 20;
-                    y = Math.random() * canvas.height;
-                    vx = -speed;
-                    vy = 0;
+                    coordinate = Math.random() * canvas.height;
                     break;
                 case 2: // bottom
-                    x = Math.random() * canvas.width;
-                    y = canvas.height + 20;
-                    vx = 0;
-                    vy = -speed;
+                    coordinate = Math.random() * canvas.width;
                     break;
                 case 3: // left
-                    x = -20;
-                    y = Math.random() * canvas.height;
-                    vx = speed;
-                    vy = 0;
+                    coordinate = Math.random() * canvas.height;
                     break;
             }
-            lasers.push({ x, y, vx, vy });
+            laserWarnings.push({ side, coordinate, timeLeft: laserWarningDuration });
             setTimeout(randomLaserAttack, 1000 + Math.random() * 2000);
         }
         function updateLasers(delta) {
-            const frameScale = delta / 16.67;
+            for (let i = laserWarnings.length - 1; i >= 0; i--) {
+                const warning = laserWarnings[i];
+                warning.timeLeft -= delta;
+                if (warning.timeLeft <= 0) {
+                    lasers.push({ side: warning.side, coordinate: warning.coordinate, age: 0, hit: false });
+                    laserWarnings.splice(i, 1);
+                }
+            }
             for (let i = lasers.length - 1; i >= 0; i--) {
                 const laser = lasers[i];
-                laser.x += laser.vx * frameScale;
-                laser.y += laser.vy * frameScale;
-                if (laser.x < -30 || laser.x > canvas.width + 30 || laser.y < -30 || laser.y > canvas.height + 30) {
+                laser.age += delta;
+                const progress = Math.min(laser.age / laserExpandDuration, 1);
+                const reachesPlayer = laser.side === 0 || laser.side === 2
+                    ? player.x <= laser.coordinate + 10 && player.x + player.size >= laser.coordinate - 10
+                    : player.y <= laser.coordinate + 10 && player.y + player.size >= laser.coordinate - 10;
+                const distanceReached = laser.side === 0
+                    ? player.y <= canvas.height * progress
+                    : laser.side === 1
+                        ? player.x + player.size >= canvas.width * (1 - progress)
+                        : laser.side === 2
+                            ? player.y + player.size >= canvas.height * (1 - progress)
+                            : player.x <= canvas.width * progress;
+                if (!laser.hit && player && player.invulnerable <= 0 && reachesPlayer && distanceReached) {
+                    player.hp = Math.max(0, player.hp - 1);
+                    player.invulnerable = 900;
+                    laser.hit = true;
+                    if (player.hp === 0) gameOver = true;
+                }
+                if (laser.age > laserExpandDuration + 250) {
                     lasers.splice(i, 1);
                 }
             }
         }
-        function drawLasers() {
-            ctx.lineWidth = 4;
-            for (const laser of lasers) {
-                ctx.beginPath();
-                ctx.moveTo(laser.x, laser.y);
-                ctx.lineTo(laser.x - laser.vx * 10, laser.y - laser.vy * 10);
-                ctx.strokeStyle = 'red';
+        function drawLaserWarnings() {
+            ctx.save();
+            ctx.lineWidth = 3;
+            ctx.setLineDash([8, 8]);
+            for (const warning of laserWarnings) {
+                const opacity = 0.35 + (1 - warning.timeLeft / laserWarningDuration) * 0.55;
+                ctx.strokeStyle = `rgba(255, 70, 70, ${opacity})`;
                 ctx.shadowBlur = 12;
+                ctx.shadowColor = 'rgba(255, 30, 30, 0.8)';
+                ctx.beginPath();
+                if (warning.side === 0 || warning.side === 2) {
+                    ctx.moveTo(warning.coordinate, 0);
+                    ctx.lineTo(warning.coordinate, canvas.height);
+                } else {
+                    ctx.moveTo(0, warning.coordinate);
+                    ctx.lineTo(canvas.width, warning.coordinate);
+                }
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+        function drawLasers() {
+            ctx.save();
+            ctx.setLineDash([]);
+            for (const laser of lasers) {
+                const progress = Math.min(laser.age / laserExpandDuration, 1);
+                ctx.beginPath();
+                if (laser.side === 0) {
+                    ctx.moveTo(laser.coordinate, 0);
+                    ctx.lineTo(laser.coordinate, canvas.height * progress);
+                } else if (laser.side === 1) {
+                    ctx.moveTo(canvas.width, laser.coordinate);
+                    ctx.lineTo(canvas.width * (1 - progress), laser.coordinate);
+                } else if (laser.side === 2) {
+                    ctx.moveTo(laser.coordinate, canvas.height);
+                    ctx.lineTo(laser.coordinate, canvas.height * (1 - progress));
+                } else {
+                    ctx.moveTo(0, laser.coordinate);
+                    ctx.lineTo(canvas.width * progress, laser.coordinate);
+                }
+                ctx.lineWidth = 8;
+                ctx.strokeStyle = 'rgba(255, 25, 25, 0.85)';
+                ctx.shadowBlur = 20;
                 ctx.shadowColor = 'red';
                 ctx.stroke();
             }
-            ctx.shadowBlur = 0;
+            ctx.restore();
         }
+        // click beats
+        
      </script>
     <script>   
+        const clickEnats = [];
+        const clickEnatsDuration = 15000;
+        let clickEnatsTimeLeft = 0;
+        let clickEnatsActive = false;
+        function randomClickEnatsAttack() {
+            if (clickEnatsActive || gameOver) {
+                setTimeout(randomClickEnatsAttack, 2500);
+                return;
+            }
+            clickEnats.length = 0;
+            let attempts = 0;
+            while (clickEnats.length < 3 && attempts < 100) {
+                const target = {
+                    x: 45 + Math.random() * (canvas.width - 90),
+                    y: 75 + Math.random() * (canvas.height - 120),
+                    hit: false
+                };
+                const spaced = clickEnats.every((other) => Math.hypot(target.x - other.x, target.y - other.y) >= 100);
+                if (spaced) clickEnats.push(target);
+                attempts++;
+            }
+            clickEnatsActive = true;
+            clickEnatsTimeLeft = clickEnatsDuration;
+            setTimeout(randomClickEnatsAttack, 10000 + Math.random() * 5000);
+        }
+        function updateClickEnats(delta) {
+            if (!clickEnatsActive) return;
+            clickEnatsTimeLeft -= delta;
+            for (const target of clickEnats) {
+                if (!target.hit && player.dashTimer > 0 &&
+                    Math.hypot(player.x + player.size / 2 - target.x, player.y + player.size / 2 - target.y) < 30) {
+                    target.hit = true;
+                }
+            }
+            if (clickEnats.every((target) => target.hit)) {
+                clickEnatsActive = false;
+                clickEnats.length = 0;
+            } else if (clickEnatsTimeLeft <= 0) {
+                player.hp = Math.max(0, player.hp - 1);
+                player.invulnerable = 900;
+                clickEnatsActive = false;
+                clickEnats.length = 0;
+                if (player.hp === 0) gameOver = true;
+            }
+        }
+        function drawClickEnats() {
+            if (!clickEnatsActive) return;
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = 'rgba(16, 12, 4, 0.86)';
+            ctx.strokeStyle = 'rgba(255, 210, 80, 0.9)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(canvas.width / 2 - 122, 48, 244, 32, 8);
+            ctx.fill();
+            ctx.stroke();
+            ctx.font = '700 15px Arial, sans-serif';
+            ctx.fillStyle = '#ffe08a';
+            ctx.fillText('CLICK ENATS', canvas.width / 2 - 38, 64);
+            ctx.font = '700 15px Arial, sans-serif';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(`${Math.ceil(clickEnatsTimeLeft / 1000)} SEC`, canvas.width / 2 + 62, 64);
+            ctx.beginPath();
+            for (let i = 0; i < clickEnats.length - 1; i++) {
+                const start = clickEnats[i];
+                const end = clickEnats[i + 1];
+                if (i === 0) ctx.moveTo(start.x, start.y);
+                ctx.lineTo(end.x, end.y);
+            }
+            ctx.strokeStyle = 'rgba(255, 210, 80, 0.9)';
+            ctx.lineWidth = 3;
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = '#ffd250';
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            for (let i = 0; i < clickEnats.length; i++) {
+                const target = clickEnats[i];
+                ctx.beginPath();
+                ctx.arc(target.x, target.y, 19, 0, Math.PI * 2);
+                ctx.strokeStyle = target.hit ? 'rgba(255, 255, 255, 0.7)' : 'rgba(255, 210, 80, 0.95)';
+                ctx.lineWidth = 3;
+                ctx.shadowBlur = target.hit ? 8 : 14;
+                ctx.shadowColor = target.hit ? 'white' : '#ffd250';
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(target.x, target.y, 7, 0, Math.PI * 2);
+                ctx.fillStyle = target.hit ? 'rgba(255, 255, 255, 0.75)' : 'rgba(255, 210, 80, 0.8)';
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = 'white';
+                ctx.fillText(String(i + 1), target.x, target.y + 5);
+            }
+            ctx.restore();
+        }
         // audio engine (was compacted by ai)
         let c,e=new Audio('Rift-breaker-tds.mp3'),source,analyser,a=(m,t=0)=>{e.pause();e.currentTime=t;if(m)e.play()};window.addEventListener('click',()=>{if(!c){c=new AudioContext();source=c.createMediaElementSource(e);analyser=c.createAnalyser();analyser.fftSize=256;source.connect(analyser).connect(c.destination);if(e.dataset.q)a(1)}},{once:true});const Music={play:()=>!c?e.dataset.q=1:(c.resume(),e.play()),pause:()=>e.pause(),stop:()=>a(0),restart:()=>a(1)};
         // play music on first click
@@ -105,11 +250,16 @@
             y: canvas.height / 2,
             size: 20,
             color: 'white',
+            hp: 3,
+            maxHp: 3,
+            invulnerable: 0,
             vx: 0,
             vy: 0,
             dashCooldown: 0,
             dashTimer: 0
         };
+        let gameOver = false;
+        randomClickEnatsAttack();
         const movementmulti = 4;
         const acceleration = 0.8;
         const maxSpeed = 8;
@@ -121,6 +271,10 @@
         let dashRequested = false;
         document.addEventListener('keydown', (e) => {
             const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+            if (gameOver && (key === 'Enter' || key === 'r')) {
+                restartGame();
+                return;
+            }
             if (Object.hasOwn(keys, key)) keys[key] = true;
             if (key === ' ' && !e.repeat) dashRequested = true;
         });
@@ -138,6 +292,7 @@
         });
         function updatePlayer(delta) {
             const frameScale = delta / 16.67;
+            player.invulnerable = Math.max(0, player.invulnerable - delta);
             let directionX = 0;
             let directionY = 0;
             if (keys['w']) directionY -= 1;
@@ -180,12 +335,72 @@
             player.y = Math.max(0, Math.min(canvas.height - player.size, player.y));
         }
         function drawPlayer() {
+            if (player.invulnerable > 0 && Math.floor(player.invulnerable / 80) % 2 === 0) return;
             const playerColor = player.dashTimer > 0 ? 'orange' : player.color;
             ctx.shadowBlur = 18;
             ctx.shadowColor = playerColor;
             ctx.fillStyle = playerColor;
             ctx.fillRect(player.x, player.y, player.size, player.size);
             ctx.shadowBlur = 0;
+        }
+        function drawHeart(x, y, size, filled) {
+            const top = y - size * 0.25;
+            ctx.beginPath();
+            ctx.moveTo(x, y + size * 0.45);
+            ctx.bezierCurveTo(x - size * 0.7, y - size * 0.05, x - size * 0.55, top - size * 0.45, x, top);
+            ctx.bezierCurveTo(x + size * 0.55, top - size * 0.45, x + size * 0.7, y - size * 0.05, x, y + size * 0.45);
+            ctx.fillStyle = filled ? 'rgba(255, 75, 85, 0.62)' : 'rgba(255, 255, 255, 0.12)';
+            ctx.strokeStyle = 'rgba(255, 150, 150, 0.7)';
+            ctx.lineWidth = 2;
+            ctx.fill();
+            ctx.stroke();
+        }
+        function drawHealth() {
+            const heartSize = 22;
+            const spacing = 34;
+            const startX = canvas.width / 2 - (player.maxHp - 1) * spacing / 2;
+            ctx.save();
+            ctx.globalAlpha = 0.8;
+            for (let i = 0; i < player.maxHp; i++) {
+                drawHeart(startX + i * spacing, 30, heartSize, i < player.hp);
+            }
+            ctx.restore();
+        }
+        function restartGame() {
+            player.x = canvas.width / 2;
+            player.y = canvas.height / 2;
+            player.hp = player.maxHp;
+            player.invulnerable = 0;
+            player.vx = 0;
+            player.vy = 0;
+            player.dashCooldown = 0;
+            player.dashTimer = 0;
+            lasers.length = 0;
+            laserWarnings.length = 0;
+            clickEnats.length = 0;
+            clickEnatsActive = false;
+            clickEnatsTimeLeft = 0;
+            trail.length = 0;
+            gameOver = false;
+            clearKeys();
+            Music.restart();
+        }
+        function drawGameOver() {
+            ctx.save();
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.72)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = 'red';
+            ctx.fillStyle = '#ff4b55';
+            ctx.font = 'bold 58px Arial, sans-serif';
+            ctx.fillText('YOU DIED!', canvas.width / 2, canvas.height / 2 - 28);
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.font = '18px Arial, sans-serif';
+            ctx.fillText('PRESS ENTER OR R TO RESTART', canvas.width / 2, canvas.height / 2 + 36);
+            ctx.restore();
         }
         const trail = [];
         function updateTrail() {
@@ -224,13 +439,20 @@
             const delta = Math.min(timestamp - lastTime, 50);
             lastTime = timestamp;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            updatePlayer(delta);
-            updateLasers(delta);
-            updateTrail();
+            if (!gameOver) {
+                updatePlayer(delta);
+                updateLasers(delta);
+                updateClickEnats(delta);
+                updateTrail();
+            }
             drawVisualizer();
+            drawLaserWarnings();
             drawLasers();
+            drawClickEnats();
             drawTrail();
             drawPlayer();
+            drawHealth();
+            if (gameOver) drawGameOver();
             requestAnimationFrame(gameLoop);
         }
         requestAnimationFrame(gameLoop);
