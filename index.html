@@ -39,23 +39,73 @@
         // setup the game canvas
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const player = { x: canvas.width / 2, y: canvas.height / 2, size: 20, color: 'white' };
+        const player = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            size: 20,
+            color: 'white',
+            vx: 0,
+            vy: 0,
+            dashCooldown: 0,
+            dashTimer: 0
+        };
         const movementmulti = 4;
-        // player movement 
-         const keys = {'w': false, 'a': false, 's': false, 'd': false};
-        document.addEventListener('keydown', (e) => { if (keys.hasOwnProperty(e.key)) keys[e.key] = true; });
+        const acceleration = 0.8;
+        const maxSpeed = 8;
+        const friction = 0.82;
+        const dashSpeed = 40;
+        const dashDuration = 140;
+        const dashCooldownTime = 450;
+        const keys = {'w': false, 'a': false, 's': false, 'd': false, 'Shift': false};
+        let dashRequested = false;
+        document.addEventListener('keydown', (e) => {
+            if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
+            if (e.key === 'Shift' && !e.repeat) dashRequested = true;
+        });
         document.addEventListener('keyup', (e) => { if (keys.hasOwnProperty(e.key)) keys[e.key] = false; });
         function updatePlayer() {
-            if (keys['w']) player.y -= 2 * movementmulti;
-            if (keys['s']) player.y += 2 * movementmulti;
-            if (keys['a']) player.x -= 2 * movementmulti;
-            if (keys['d']) player.x += 2 * movementmulti;
+            let directionX = 0;
+            let directionY = 0;
+            if (keys['w']) directionY -= 1;
+            if (keys['s']) directionY += 1;
+            if (keys['a']) directionX -= 1;
+            if (keys['d']) directionX += 1;
+
+            const directionLength = Math.hypot(directionX, directionY) || 1;
+            directionX /= directionLength;
+            directionY /= directionLength;
+
+            player.vx += directionX * acceleration;
+            player.vy += directionY * acceleration;
+            const speed = Math.hypot(player.vx, player.vy);
+            if (speed > maxSpeed) {
+                player.vx = (player.vx / speed) * maxSpeed;
+                player.vy = (player.vy / speed) * maxSpeed;
+            }
+
+            if (dashRequested && player.dashCooldown <= 0 && (directionX || directionY)) {
+                player.vx += directionX * dashSpeed;
+                player.vy += directionY * dashSpeed;
+                player.dashCooldown = dashCooldownTime;
+                player.dashTimer = dashDuration;
+            }
+            dashRequested = false;
+            player.dashCooldown = Math.max(0, player.dashCooldown - 16.67);
+            player.dashTimer = Math.max(0, player.dashTimer - 16.67);
+
+            player.x += player.vx;
+            player.y += player.vy;
+            player.vx *= friction;
+            player.vy *= friction;
+
             // keep player within bounds
+            if (player.x <= 0 || player.x >= canvas.width - player.size) player.vx = 0;
+            if (player.y <= 0 || player.y >= canvas.height - player.size) player.vy = 0;
             player.x = Math.max(0, Math.min(canvas.width - player.size, player.x));
             player.y = Math.max(0, Math.min(canvas.height - player.size, player.y));
         }
         function drawPlayer() {
-            ctx.fillStyle = player.color;
+            ctx.fillStyle = player.dashTimer > 0 ? 'orange' : player.color;
             ctx.fillRect(player.x, player.y, player.size, player.size);
         }
         const trail = [];
