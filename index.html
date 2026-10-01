@@ -34,6 +34,8 @@
         const laserWarnings = [];
         const laserWarningDuration = 700;
         const laserExpandDuration = 1000;
+        let gameTime = 0;
+        const getDifficulty = () => 1 + Math.min(gameTime / 60000, 1.5);
         function randomLaserAttack() {
             const side = Math.floor(Math.random() * 4);
             let coordinate;
@@ -51,8 +53,8 @@
                     coordinate = Math.random() * canvas.height;
                     break;
             }
-            laserWarnings.push({ side, coordinate, timeLeft: laserWarningDuration });
-            setTimeout(randomLaserAttack, 1000 + Math.random() * 2000);
+            laserWarnings.push({ side, coordinate, timeLeft: laserWarningDuration / getDifficulty() });
+            setTimeout(randomLaserAttack, Math.max(500, (1000 + Math.random() * 2000) / getDifficulty()));
         }
         function updateLasers(delta) {
             for (let i = laserWarnings.length - 1; i >= 0; i--) {
@@ -66,7 +68,7 @@
             for (let i = lasers.length - 1; i >= 0; i--) {
                 const laser = lasers[i];
                 laser.age += delta;
-                const progress = Math.min(laser.age / laserExpandDuration, 1);
+                const progress = Math.min(laser.age / (laserExpandDuration / getDifficulty()), 1);
                 const reachesPlayer = laser.side === 0 || laser.side === 2
                     ? player.x <= laser.coordinate + 10 && player.x + player.size >= laser.coordinate - 10
                     : player.y <= laser.coordinate + 10 && player.y + player.size >= laser.coordinate - 10;
@@ -83,7 +85,7 @@
                     laser.hit = true;
                     if (player.hp === 0) gameOver = true;
                 }
-                if (laser.age > laserExpandDuration + 250) {
+                if (laser.age > laserExpandDuration / getDifficulty() + 250) {
                     lasers.splice(i, 1);
                 }
             }
@@ -113,7 +115,7 @@
             ctx.save();
             ctx.setLineDash([]);
             for (const laser of lasers) {
-                const progress = Math.min(laser.age / laserExpandDuration, 1);
+                const progress = Math.min(laser.age / (laserExpandDuration / getDifficulty()), 1);
                 ctx.beginPath();
                 if (laser.side === 0) {
                     ctx.moveTo(laser.coordinate, 0);
@@ -144,11 +146,12 @@
         const clickEnatsDuration = 15000;
         let clickEnatsTimeLeft = 0;
         let clickEnatsActive = false;
+        let clickEnatsNextAt = 120000;
+        const regenerationPickups = [];
+        let nextRegenerationAt = 30000;
+        const getSongTime = () => e.currentTime * 1000;
         function randomClickEnatsAttack() {
-            if (clickEnatsActive || gameOver) {
-                setTimeout(randomClickEnatsAttack, 2500);
-                return;
-            }
+            if (clickEnatsActive || gameOver || getSongTime() < clickEnatsNextAt) return;
             clickEnats.length = 0;
             let attempts = 0;
             while (clickEnats.length < 3 && attempts < 100) {
@@ -162,28 +165,70 @@
                 attempts++;
             }
             clickEnatsActive = true;
-            clickEnatsTimeLeft = clickEnatsDuration;
-            setTimeout(randomClickEnatsAttack, 10000 + Math.random() * 5000);
+            clickEnatsTimeLeft = clickEnatsDuration / getDifficulty();
+            clickEnatsNextAt = Infinity;
         }
         function updateClickEnats(delta) {
             if (!clickEnatsActive) return;
             clickEnatsTimeLeft -= delta;
             for (const target of clickEnats) {
-                if (!target.hit && player.dashTimer > 0 &&
+                if (!target.hit && clickEnatsSpaceRequested &&
                     Math.hypot(player.x + player.size / 2 - target.x, player.y + player.size / 2 - target.y) < 30) {
                     target.hit = true;
                 }
             }
+            clickEnatsSpaceRequested = false;
             if (clickEnats.every((target) => target.hit)) {
                 clickEnatsActive = false;
                 clickEnats.length = 0;
+                clickEnatsNextAt = getSongTime() + 15000;
             } else if (clickEnatsTimeLeft <= 0) {
                 player.hp = Math.max(0, player.hp - 1);
                 player.invulnerable = 900;
                 clickEnatsActive = false;
                 clickEnats.length = 0;
+                clickEnatsNextAt = getSongTime() + 15000;
                 if (player.hp === 0) gameOver = true;
             }
+        }
+        function spawnRegenerationPickup() {
+            regenerationPickups.push({
+                x: 35 + Math.random() * (canvas.width - 70),
+                y: 85 + Math.random() * (canvas.height - 125),
+                age: 0
+            });
+            nextRegenerationAt = gameTime + 25000 + Math.random() * 15000;
+        }
+        function updateRegenerationPickups(delta) {
+            if (gameTime >= nextRegenerationAt) spawnRegenerationPickup();
+            for (let i = regenerationPickups.length - 1; i >= 0; i--) {
+                const pickup = regenerationPickups[i];
+                pickup.age += delta;
+                if (Math.hypot(player.x + player.size / 2 - pickup.x, player.y + player.size / 2 - pickup.y) < 25) {
+                    player.hp = Math.min(player.maxHp, player.hp + 1);
+                    regenerationPickups.splice(i, 1);
+                }
+            }
+        }
+        function drawRegenerationPickups() {
+            ctx.save();
+            for (const pickup of regenerationPickups) {
+                const pulse = Math.sin(pickup.age / 180) * 2;
+                ctx.beginPath();
+                ctx.arc(pickup.x, pickup.y, 14 + pulse, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(80, 255, 150, 0.18)';
+                ctx.strokeStyle = 'rgba(100, 255, 170, 0.95)';
+                ctx.lineWidth = 3;
+                ctx.shadowBlur = 16;
+                ctx.shadowColor = '#64ffaa';
+                ctx.fill();
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#8affbd';
+                ctx.fillRect(pickup.x - 3, pickup.y - 9, 6, 18);
+                ctx.fillRect(pickup.x - 9, pickup.y - 3, 18, 6);
+            }
+            ctx.restore();
         }
         function drawClickEnats() {
             if (!clickEnatsActive) return;
@@ -259,7 +304,7 @@
             dashTimer: 0
         };
         let gameOver = false;
-        randomClickEnatsAttack();
+        clickEnatsNextAt = 120000;
         const movementmulti = 4;
         const acceleration = 0.8;
         const maxSpeed = 8;
@@ -269,6 +314,7 @@
         const dashCooldownTime = 450;
         const keys = {'w': false, 'a': false, 's': false, 'd': false, ' ': false};
         let dashRequested = false;
+        let clickEnatsSpaceRequested = false;
         document.addEventListener('keydown', (e) => {
             const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
             if (gameOver && (key === 'Enter' || key === 'r')) {
@@ -276,7 +322,10 @@
                 return;
             }
             if (Object.hasOwn(keys, key)) keys[key] = true;
-            if (key === ' ' && !e.repeat) dashRequested = true;
+            if (key === ' ' && !e.repeat) {
+                dashRequested = true;
+                clickEnatsSpaceRequested = true;
+            }
         });
         document.addEventListener('keyup', (e) => {
             const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
@@ -285,6 +334,7 @@
         function clearKeys() {
             Object.keys(keys).forEach((key) => { keys[key] = false; });
             dashRequested = false;
+            clickEnatsSpaceRequested = false;
         }
         window.addEventListener('blur', clearKeys);
         document.addEventListener('visibilitychange', () => {
@@ -380,8 +430,12 @@
             clickEnats.length = 0;
             clickEnatsActive = false;
             clickEnatsTimeLeft = 0;
+            clickEnatsNextAt = 120000;
+            regenerationPickups.length = 0;
+            nextRegenerationAt = 30000;
             trail.length = 0;
             gameOver = false;
+            gameTime = 0;
             clearKeys();
             Music.restart();
         }
@@ -440,15 +494,19 @@
             lastTime = timestamp;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             if (!gameOver) {
+                gameTime += delta;
+                updateClickEnats(delta);
+                if (getSongTime() >= clickEnatsNextAt) randomClickEnatsAttack();
+                updateRegenerationPickups(delta);
                 updatePlayer(delta);
                 updateLasers(delta);
-                updateClickEnats(delta);
                 updateTrail();
             }
             drawVisualizer();
             drawLaserWarnings();
             drawLasers();
             drawClickEnats();
+            drawRegenerationPickups();
             drawTrail();
             drawPlayer();
             drawHealth();
