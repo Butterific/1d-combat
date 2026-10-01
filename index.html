@@ -39,5 +39,52 @@
         // setup the game canvas
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        
+        const player = { x: canvas.width / 2, y: canvas.height / 2, size: 20, color: 'white' };
+        const movementmulti = 4;
+        // player movement 
+         const keys = {'w': false, 'a': false, 's': false, 'd': false};
+        document.addEventListener('keydown', (e) => { if (keys.hasOwnProperty(e.key)) keys[e.key] = true; });
+        document.addEventListener('keyup', (e) => { if (keys.hasOwnProperty(e.key)) keys[e.key] = false; });
+        function updatePlayer() {
+            if (keys['w']) player.y -= 2 * movementmulti;
+            if (keys['s']) player.y += 2 * movementmulti;
+            if (keys['a']) player.x -= 2 * movementmulti;
+            if (keys['d']) player.x += 2 * movementmulti;
+            // keep player within bounds
+            player.x = Math.max(0, Math.min(canvas.width - player.size, player.x));
+            player.y = Math.max(0, Math.min(canvas.height - player.size, player.y));
+        }
+        function drawPlayer() {
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y, player.size, player.size);
+        }
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            updatePlayer();
+            drawPlayer();
+            requestAnimationFrame(gameLoop);
+        }
+        gameLoop();
+        // add a smooth trail behind the player
+        const trail = [];
+        function updateTrail() {
+            trail.push({ x: player.x, y: player.y });
+            if (trail.length > 20) trail.shift();
+        }
+        function drawTrail() {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            for (let i = 0; i < trail.length; i++) {
+                const point = trail[i];
+                ctx.fillRect(point.x, point.y, player.size, player.size);
+            }
+        }
+        function gameLoopWithTrail() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            updatePlayer();
+            updateTrail();
+            drawTrail();
+            drawPlayer();
+            requestAnimationFrame(gameLoopWithTrail);
+        }
+        gameLoopWithTrail();
     </script>
