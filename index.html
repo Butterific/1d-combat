@@ -53,17 +53,30 @@
         const acceleration = 0.8;
         const maxSpeed = 8;
         const friction = 0.82;
-        const dashSpeed = 40;
+        const dashSpeed = 65;
         const dashDuration = 140;
         const dashCooldownTime = 450;
         const keys = {'w': false, 'a': false, 's': false, 'd': false, 'Shift': false};
         let dashRequested = false;
         document.addEventListener('keydown', (e) => {
-            if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
-            if (e.key === 'Shift' && !e.repeat) dashRequested = true;
+            const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+            if (Object.hasOwn(keys, key)) keys[key] = true;
+            if (key === 'Shift' && !e.repeat) dashRequested = true;
         });
-        document.addEventListener('keyup', (e) => { if (keys.hasOwnProperty(e.key)) keys[e.key] = false; });
-        function updatePlayer() {
+        document.addEventListener('keyup', (e) => {
+            const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+            if (Object.hasOwn(keys, key)) keys[key] = false;
+        });
+        function clearKeys() {
+            Object.keys(keys).forEach((key) => { keys[key] = false; });
+            dashRequested = false;
+        }
+        window.addEventListener('blur', clearKeys);
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) clearKeys();
+        });
+        function updatePlayer(delta) {
+            const frameScale = delta / 16.67;
             let directionX = 0;
             let directionY = 0;
             if (keys['w']) directionY -= 1;
@@ -75,8 +88,8 @@
             directionX /= directionLength;
             directionY /= directionLength;
 
-            player.vx += directionX * acceleration;
-            player.vy += directionY * acceleration;
+            player.vx += directionX * acceleration * frameScale;
+            player.vy += directionY * acceleration * frameScale;
             const speed = Math.hypot(player.vx, player.vy);
             if (speed > maxSpeed) {
                 player.vx = (player.vx / speed) * maxSpeed;
@@ -90,13 +103,14 @@
                 player.dashTimer = dashDuration;
             }
             dashRequested = false;
-            player.dashCooldown = Math.max(0, player.dashCooldown - 16.67);
-            player.dashTimer = Math.max(0, player.dashTimer - 16.67);
+            player.dashCooldown = Math.max(0, player.dashCooldown - delta);
+            player.dashTimer = Math.max(0, player.dashTimer - delta);
 
-            player.x += player.vx;
-            player.y += player.vy;
-            player.vx *= friction;
-            player.vy *= friction;
+            player.x += player.vx * frameScale;
+            player.y += player.vy * frameScale;
+            const frictionScale = Math.pow(friction, frameScale);
+            player.vx *= frictionScale;
+            player.vy *= frictionScale;
 
             // keep player within bounds
             if (player.x <= 0 || player.x >= canvas.width - player.size) player.vx = 0;
@@ -105,14 +119,19 @@
             player.y = Math.max(0, Math.min(canvas.height - player.size, player.y));
         }
         function drawPlayer() {
-            ctx.fillStyle = player.dashTimer > 0 ? 'orange' : player.color;
+            const playerColor = player.dashTimer > 0 ? 'orange' : player.color;
+            ctx.shadowBlur = 18;
+            ctx.shadowColor = playerColor;
+            ctx.fillStyle = playerColor;
             ctx.fillRect(player.x, player.y, player.size, player.size);
+            ctx.shadowBlur = 0;
         }
         const trail = [];
         function updateTrail() {
             trail.push({
                 x: player.x + player.size / 2,
-                y: player.y + player.size / 2
+                y: player.y + player.size / 2,
+                dashing: player.dashTimer > 0
             });
             if (trail.length > 32) trail.shift();
         }
@@ -126,22 +145,29 @@
             for (let i = 1; i < trail.length; i++) {
                 const start = trail[i - 1];
                 const end = trail[i];
-                const opacity = (i / trail.length) * 0.35;
+                const opacity = (i / trail.length) * (end.dashing ? 0.45 : 0.3);
 
                 ctx.beginPath();
                 ctx.moveTo(start.x, start.y);
                 ctx.lineTo(end.x, end.y);
-                ctx.strokeStyle = `rgba(255, 255, 255, ${opacity})`;
+                const trailColor = end.dashing ? `255, 165, 0` : `255, 255, 255`;
+                ctx.strokeStyle = `rgba(${trailColor}, ${opacity})`;
+                ctx.shadowBlur = end.dashing ? 16 : 10;
+                ctx.shadowColor = end.dashing ? 'orange' : 'rgba(255, 255, 255, 0.7)';
                 ctx.stroke();
             }
+            ctx.shadowBlur = 0;
         }
-        function gameLoop() {
+        let lastTime = performance.now();
+        function gameLoop(timestamp) {
+            const delta = Math.min(timestamp - lastTime, 50);
+            lastTime = timestamp;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            updatePlayer();
+            updatePlayer(delta);
             updateTrail();
             drawTrail();
             drawPlayer();
             requestAnimationFrame(gameLoop);
         }
-        gameLoop();
+        requestAnimationFrame(gameLoop);
     </script>
