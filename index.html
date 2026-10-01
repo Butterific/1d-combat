@@ -165,9 +165,9 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             updatePlayer(delta);
             updateTrail();
+            drawVisualizer();
             drawTrail();
             drawPlayer();
-            drawVisualizer();
             requestAnimationFrame(gameLoop);
         }
         requestAnimationFrame(gameLoop);
@@ -178,14 +178,20 @@
         function drawVisualizer() {
             if (!analyser) return;
             analyser.getByteFrequencyData(dataArray);
-            const barWidth = (canvas.width / bufferLength) * 2.5;
-            let barHeight;
-            let x = 0;
+            const progress = e.duration ? Math.min(e.currentTime / e.duration, 1) : 0;
+            const barColor = `rgba(255, ${Math.round(165 * (1 - progress))}, 0, 0.58)`;
+            const barWidth = canvas.width / bufferLength;
+            ctx.beginPath();
             for (let i = 0; i < bufferLength; i++) {
-                barHeight = dataArray[i];
-                ctx.fillStyle = `rgba(${barHeight + 100}, 50, 50, 0.35)`;
-                ctx.fillRect(x, canvas.height - barHeight / 2, barWidth, barHeight / 2);
-                x += barWidth + 1;
+                const spectrumIndex = Math.min(i, bufferLength - 1 - i);
+                const barHeight = (dataArray[spectrumIndex] / 255) * (canvas.height * 0.4);
+                const x = Math.floor(i * barWidth);
+                const nextX = Math.ceil((i + 1) * barWidth);
+                const y = canvas.height - barHeight;
+                ctx.rect(x, y, nextX - x, barHeight);
             }
+            ctx.fillStyle = barColor;
+            ctx.fill();
         }
     </script>
+</body>
