@@ -31,7 +31,6 @@
      <script>
         // laser attacks 
         const lasers = [];
-        randomLaserAttack();
         function randomLaserAttack() {
             const side = Math.floor(Math.random() * 4);
             const speed = 4 + Math.random() * 2;
@@ -100,6 +99,7 @@
         // setup the game canvas
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+        randomLaserAttack();
         const player = {
             x: canvas.width / 2,
             y: canvas.height / 2,
@@ -225,8 +225,10 @@
             lastTime = timestamp;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             updatePlayer(delta);
+            updateLasers(delta);
             updateTrail();
             drawVisualizer();
+            drawLasers();
             drawTrail();
             drawPlayer();
             requestAnimationFrame(gameLoop);
