@@ -27,6 +27,11 @@
 </head>
 <body>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <!-- attacks -->
+     <script>
+        // laser attacks 
+        
+     </script>
     <script>   
         // audio engine (was compacted by ai)
         let c,e=new Audio('Rift-breaker-tds.mp3'),source,analyser,a=(m,t=0)=>{e.pause();e.currentTime=t;if(m)e.play()};window.addEventListener('click',()=>{if(!c){c=new AudioContext();source=c.createMediaElementSource(e);analyser=c.createAnalyser();analyser.fftSize=256;source.connect(analyser).connect(c.destination);if(e.dataset.q)a(1)}},{once:true});const Music={play:()=>!c?e.dataset.q=1:(c.resume(),e.play()),pause:()=>e.pause(),stop:()=>a(0),restart:()=>a(1)};
