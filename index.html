@@ -6,8 +6,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>1D Combat</title>
     <style> 
-
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            border: 1px solid #fff;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 <body>
-    <h1>Welcome to 1d-combat! Its a combat focused rythm game whule trying to doge lasers while listening to music!</h1>
+    <h1>Welcome to 1d-combat! It is a combat focused rythm game while trying to dodge lasers while listening to music!</h1>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <script>   
+        // setup the game canvas
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+    </script>
