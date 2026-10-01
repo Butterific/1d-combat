@@ -30,7 +30,65 @@
     <!-- attacks -->
      <script>
         // laser attacks 
-        
+        const lasers = [];
+        randomLaserAttack();
+        function randomLaserAttack() {
+            const side = Math.floor(Math.random() * 4);
+            const speed = 4 + Math.random() * 2;
+            let x, y, vx, vy;
+            switch (side) {
+                case 0: // top
+                    x = Math.random() * canvas.width;
+                    y = -20;
+                    vx = 0;
+                    vy = speed;
+                    break;
+                case 1: // right
+                    x = canvas.width + 20;
+                    y = Math.random() * canvas.height;
+                    vx = -speed;
+                    vy = 0;
+                    break;
+                case 2: // bottom
+                    x = Math.random() * canvas.width;
+                    y = canvas.height + 20;
+                    vx = 0;
+                    vy = -speed;
+                    break;
+                case 3: // left
+                    x = -20;
+                    y = Math.random() * canvas.height;
+                    vx = speed;
+                    vy = 0;
+                    break;
+            }
+            lasers.push({ x, y, vx, vy });
+            setTimeout(randomLaserAttack, 1000 + Math.random() * 2000);
+        }
+        function updateLasers(delta) {
+            const frameScale = delta / 16.67;
+            for (let i = lasers.length - 1; i >= 0; i--) {
+                const laser = lasers[i];
+                laser.x += laser.vx * frameScale;
+                laser.y += laser.vy * frameScale;
+                if (laser.x < -30 || laser.x > canvas.width + 30 || laser.y < -30 || laser.y > canvas.height + 30) {
+                    lasers.splice(i, 1);
+                }
+            }
+        }
+        function drawLasers() {
+            ctx.lineWidth = 4;
+            for (const laser of lasers) {
+                ctx.beginPath();
+                ctx.moveTo(laser.x, laser.y);
+                ctx.lineTo(laser.x - laser.vx * 10, laser.y - laser.vy * 10);
+                ctx.strokeStyle = 'red';
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = 'red';
+                ctx.stroke();
+            }
+            ctx.shadowBlur = 0;
+        }
      </script>
     <script>   
         // audio engine (was compacted by ai)
