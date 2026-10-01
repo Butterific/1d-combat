@@ -58,33 +58,40 @@
             ctx.fillStyle = player.color;
             ctx.fillRect(player.x, player.y, player.size, player.size);
         }
-        function gameLoop() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            updatePlayer();
-            drawPlayer();
-            requestAnimationFrame(gameLoop);
-        }
-        gameLoop();
-        // add a smooth trail behind the player
         const trail = [];
         function updateTrail() {
-            trail.push({ x: player.x, y: player.y });
-            if (trail.length > 20) trail.shift();
+            trail.push({
+                x: player.x + player.size / 2,
+                y: player.y + player.size / 2
+            });
+            if (trail.length > 32) trail.shift();
         }
         function drawTrail() {
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-            for (let i = 0; i < trail.length; i++) {
-                const point = trail[i];
-                ctx.fillRect(point.x, point.y, player.size, player.size);
+            if (trail.length < 2) return;
+
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.lineWidth = player.size * 0.75;
+
+            for (let i = 1; i < trail.length; i++) {
+                const start = trail[i - 1];
+                const end = trail[i];
+                const opacity = (i / trail.length) * 0.35;
+
+                ctx.beginPath();
+                ctx.moveTo(start.x, start.y);
+                ctx.lineTo(end.x, end.y);
+                ctx.strokeStyle = `rgba(255, 255, 255)`;
+                ctx.stroke();
             }
         }
-        function gameLoopWithTrail() {
+        function gameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             updatePlayer();
             updateTrail();
             drawTrail();
             drawPlayer();
-            requestAnimationFrame(gameLoopWithTrail);
+            requestAnimationFrame(gameLoop);
         }
-        gameLoopWithTrail();
+        gameLoop();
     </script>
