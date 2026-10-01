@@ -31,7 +31,7 @@
     <canvas id="gameCanvas" width="800" height="600"></canvas>
     <script>   
         // audio engine (was compacted by ai)
-        let c,e=new Audio('Rift-breaker-tds.mp3'),a=(m,t=0)=>{e.pause();e.currentTime=t;if(m)e.play()};window.addEventListener('click',()=>{if(!c){c=new AudioContext();c.createMediaElementSource(e).connect(c.destination);if(e.dataset.q)a(1)}},{once:true});const Music={play:()=>!c?e.dataset.q=1:(c.resume(),e.play()),pause:()=>e.pause(),stop:()=>a(0),restart:()=>a(1)};
+        let c,e=new Audio('Rift-breaker-tds.mp3'),source,analyser,a=(m,t=0)=>{e.pause();e.currentTime=t;if(m)e.play()};window.addEventListener('click',()=>{if(!c){c=new AudioContext();source=c.createMediaElementSource(e);analyser=c.createAnalyser();analyser.fftSize=256;source.connect(analyser).connect(c.destination);if(e.dataset.q)a(1)}},{once:true});const Music={play:()=>!c?e.dataset.q=1:(c.resume(),e.play()),pause:()=>e.pause(),stop:()=>a(0),restart:()=>a(1)};
         // play music on first click
         window.addEventListener('mousedown',()=>{Music.play()},{once:false});
     </script>
@@ -56,12 +56,12 @@
         const dashSpeed = 65;
         const dashDuration = 140;
         const dashCooldownTime = 450;
-        const keys = {'w': false, 'a': false, 's': false, 'd': false, 'Shift': false};
+        const keys = {'w': false, 'a': false, 's': false, 'd': false, ' ': false};
         let dashRequested = false;
         document.addEventListener('keydown', (e) => {
             const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
             if (Object.hasOwn(keys, key)) keys[key] = true;
-            if (key === 'Shift' && !e.repeat) dashRequested = true;
+            if (key === ' ' && !e.repeat) dashRequested = true;
         });
         document.addEventListener('keyup', (e) => {
             const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
@@ -112,7 +112,7 @@
             player.vx *= frictionScale;
             player.vy *= frictionScale;
 
-            // keep player within bounds
+            // keep player inside bounds
             if (player.x <= 0 || player.x >= canvas.width - player.size) player.vx = 0;
             if (player.y <= 0 || player.y >= canvas.height - player.size) player.vy = 0;
             player.x = Math.max(0, Math.min(canvas.width - player.size, player.x));
@@ -167,7 +167,25 @@
             updateTrail();
             drawTrail();
             drawPlayer();
+            drawVisualizer();
             requestAnimationFrame(gameLoop);
         }
         requestAnimationFrame(gameLoop);
+
+        // background music visualizer (blured as canvas background which works in unison with the existing audio engine)
+        const bufferLength = 128;
+        const dataArray = new Uint8Array(bufferLength);
+        function drawVisualizer() {
+            if (!analyser) return;
+            analyser.getByteFrequencyData(dataArray);
+            const barWidth = (canvas.width / bufferLength) * 2.5;
+            let barHeight;
+            let x = 0;
+            for (let i = 0; i < bufferLength; i++) {
+                barHeight = dataArray[i];
+                ctx.fillStyle = `rgba(${barHeight + 100}, 50, 50, 0.35)`;
+                ctx.fillRect(x, canvas.height - barHeight / 2, barWidth, barHeight / 2);
+                x += barWidth + 1;
+            }
+        }
     </script>
