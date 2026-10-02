@@ -1,528 +1,192 @@
-<!-- 1D Combat - orginal file before compression to 3 kb for shrink -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>1D Combat</title>
-    <style> 
+    <title>Audio Visualizer</title>
+    <style>
         body {
             margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
             overflow: hidden;
-            background-color: #000;
-            color: #fff;
-            font-family: Arial, sans-serif;
+            background: #000;
         }
+
         canvas {
             display: block;
             width: 100vw;
             height: 100vh;
         }
+
+        .controls {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            display: grid;
+            gap: 12px;
+            justify-items: center;
+            padding: 18px 22px;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font: 15px Arial, sans-serif;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            border-radius: 10px;
+        }
+
+        .upload-label {
+            padding: 10px 16px;
+            color: #000;
+            font-weight: bold;
+            background: #fff;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .upload-label input {
+            display: none;
+        }
+
+        .color-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .color-label input {
+            width: 42px;
+            height: 28px;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            cursor: pointer;
+        }
+
+        #audioName {
+            max-width: 240px;
+            margin: 0;
+            overflow: hidden;
+            color: rgba(255, 255, 255, 0.75);
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
     </style>
 </head>
 <body>
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
-    <!-- attacks -->
-     <script>
-        // laser attacks 
-        const lasers = [];
-        const laserWarnings = [];
-        const laserWarningDuration = 700;
-        const laserExpandDuration = 1000;
-        let gameTime = 0;
-        const getDifficulty = () => 1 + Math.min(gameTime / 60000, 1.5);
-        function randomLaserAttack() {
-            const side = Math.floor(Math.random() * 4);
-            let coordinate;
-            switch (side) {
-                case 0: // top
-                    coordinate = Math.random() * canvas.width;
-                    break;
-                case 1: // right
-                    coordinate = Math.random() * canvas.height;
-                    break;
-                case 2: // bottom
-                    coordinate = Math.random() * canvas.width;
-                    break;
-                case 3: // left
-                    coordinate = Math.random() * canvas.height;
-                    break;
-            }
-            laserWarnings.push({ side, coordinate, timeLeft: laserWarningDuration / getDifficulty() });
-            setTimeout(randomLaserAttack, Math.max(500, (1000 + Math.random() * 2000) / getDifficulty()));
-        }
-        function updateLasers(delta) {
-            for (let i = laserWarnings.length - 1; i >= 0; i--) {
-                const warning = laserWarnings[i];
-                warning.timeLeft -= delta;
-                if (warning.timeLeft <= 0) {
-                    lasers.push({ side: warning.side, coordinate: warning.coordinate, age: 0, hit: false });
-                    laserWarnings.splice(i, 1);
-                }
-            }
-            for (let i = lasers.length - 1; i >= 0; i--) {
-                const laser = lasers[i];
-                laser.age += delta;
-                const progress = Math.min(laser.age / (laserExpandDuration / getDifficulty()), 1);
-                const reachesPlayer = laser.side === 0 || laser.side === 2
-                    ? player.x <= laser.coordinate + 10 && player.x + player.size >= laser.coordinate - 10
-                    : player.y <= laser.coordinate + 10 && player.y + player.size >= laser.coordinate - 10;
-                const distanceReached = laser.side === 0
-                    ? player.y <= canvas.height * progress
-                    : laser.side === 1
-                        ? player.x + player.size >= canvas.width * (1 - progress)
-                        : laser.side === 2
-                            ? player.y + player.size >= canvas.height * (1 - progress)
-                            : player.x <= canvas.width * progress;
-                if (!laser.hit && player && player.invulnerable <= 0 && reachesPlayer && distanceReached) {
-                    player.hp = Math.max(0, player.hp - 1);
-                    player.invulnerable = 900;
-                    laser.hit = true;
-                    if (player.hp === 0) gameOver = true;
-                }
-                if (laser.age > laserExpandDuration / getDifficulty() + 250) {
-                    lasers.splice(i, 1);
-                }
-            }
-        }
-        function drawLaserWarnings() {
-            ctx.save();
-            ctx.lineWidth = 3;
-            ctx.setLineDash([8, 8]);
-            for (const warning of laserWarnings) {
-                const opacity = 0.35 + (1 - warning.timeLeft / laserWarningDuration) * 0.55;
-                ctx.strokeStyle = `rgba(255, 70, 70, ${opacity})`;
-                ctx.shadowBlur = 12;
-                ctx.shadowColor = 'rgba(255, 30, 30, 0.8)';
-                ctx.beginPath();
-                if (warning.side === 0 || warning.side === 2) {
-                    ctx.moveTo(warning.coordinate, 0);
-                    ctx.lineTo(warning.coordinate, canvas.height);
-                } else {
-                    ctx.moveTo(0, warning.coordinate);
-                    ctx.lineTo(canvas.width, warning.coordinate);
-                }
-                ctx.stroke();
-            }
-            ctx.restore();
-        }
-        function drawLasers() {
-            ctx.save();
-            ctx.setLineDash([]);
-            for (const laser of lasers) {
-                const progress = Math.min(laser.age / (laserExpandDuration / getDifficulty()), 1);
-                ctx.beginPath();
-                if (laser.side === 0) {
-                    ctx.moveTo(laser.coordinate, 0);
-                    ctx.lineTo(laser.coordinate, canvas.height * progress);
-                } else if (laser.side === 1) {
-                    ctx.moveTo(canvas.width, laser.coordinate);
-                    ctx.lineTo(canvas.width * (1 - progress), laser.coordinate);
-                } else if (laser.side === 2) {
-                    ctx.moveTo(laser.coordinate, canvas.height);
-                    ctx.lineTo(laser.coordinate, canvas.height * (1 - progress));
-                } else {
-                    ctx.moveTo(0, laser.coordinate);
-                    ctx.lineTo(canvas.width * progress, laser.coordinate);
-                }
-                ctx.lineWidth = 8;
-                ctx.strokeStyle = 'rgba(255, 25, 25, 0.85)';
-                ctx.shadowBlur = 20;
-                ctx.shadowColor = 'red';
-                ctx.stroke();
-            }
-            ctx.restore();
-        }
-        // click beats
-        
-     </script>
-    <script>   
-        const clickEnats = [];
-        const clickEnatsDuration = 15000;
-        let clickEnatsTimeLeft = 0;
-        let clickEnatsActive = false;
-        let clickEnatsNextAt = 120000;
-        const regenerationPickups = [];
-        let nextRegenerationAt = 30000;
-        const getSongTime = () => e.currentTime * 1000;
-        function randomClickEnatsAttack() {
-            if (clickEnatsActive || gameOver || getSongTime() < clickEnatsNextAt) return;
-            clickEnats.length = 0;
-            let attempts = 0;
-            while (clickEnats.length < 3 && attempts < 100) {
-                const target = {
-                    x: 45 + Math.random() * (canvas.width - 90),
-                    y: 75 + Math.random() * (canvas.height - 120),
-                    hit: false
-                };
-                const spaced = clickEnats.every((other) => Math.hypot(target.x - other.x, target.y - other.y) >= 100);
-                if (spaced) clickEnats.push(target);
-                attempts++;
-            }
-            clickEnatsActive = true;
-            clickEnatsTimeLeft = clickEnatsDuration / getDifficulty();
-            clickEnatsNextAt = Infinity;
-        }
-        function updateClickEnats(delta) {
-            if (!clickEnatsActive) return;
-            clickEnatsTimeLeft -= delta;
-            for (const target of clickEnats) {
-                if (!target.hit && clickEnatsSpaceRequested &&
-                    Math.hypot(player.x + player.size / 2 - target.x, player.y + player.size / 2 - target.y) < 30) {
-                    target.hit = true;
-                }
-            }
-            clickEnatsSpaceRequested = false;
-            if (clickEnats.every((target) => target.hit)) {
-                clickEnatsActive = false;
-                clickEnats.length = 0;
-                clickEnatsNextAt = getSongTime() + 15000;
-            } else if (clickEnatsTimeLeft <= 0) {
-                player.hp = Math.max(0, player.hp - 1);
-                player.invulnerable = 900;
-                clickEnatsActive = false;
-                clickEnats.length = 0;
-                clickEnatsNextAt = getSongTime() + 15000;
-                if (player.hp === 0) gameOver = true;
-            }
-        }
-        function spawnRegenerationPickup() {
-            regenerationPickups.push({
-                x: 35 + Math.random() * (canvas.width - 70),
-                y: 85 + Math.random() * (canvas.height - 125),
-                age: 0
-            });
-            nextRegenerationAt = gameTime + 25000 + Math.random() * 15000;
-        }
-        function updateRegenerationPickups(delta) {
-            if (gameTime >= nextRegenerationAt) spawnRegenerationPickup();
-            for (let i = regenerationPickups.length - 1; i >= 0; i--) {
-                const pickup = regenerationPickups[i];
-                pickup.age += delta;
-                if (Math.hypot(player.x + player.size / 2 - pickup.x, player.y + player.size / 2 - pickup.y) < 25) {
-                    player.hp = Math.min(player.maxHp, player.hp + 1);
-                    regenerationPickups.splice(i, 1);
-                }
-            }
-        }
-        function drawRegenerationPickups() {
-            ctx.save();
-            for (const pickup of regenerationPickups) {
-                const pulse = Math.sin(pickup.age / 180) * 2;
-                ctx.beginPath();
-                ctx.arc(pickup.x, pickup.y, 14 + pulse, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(80, 255, 150, 0.18)';
-                ctx.strokeStyle = 'rgba(100, 255, 170, 0.95)';
-                ctx.lineWidth = 3;
-                ctx.shadowBlur = 16;
-                ctx.shadowColor = '#64ffaa';
-                ctx.fill();
-                ctx.stroke();
-                ctx.shadowBlur = 0;
-                ctx.fillStyle = '#8affbd';
-                ctx.fillRect(pickup.x - 3, pickup.y - 9, 6, 18);
-                ctx.fillRect(pickup.x - 9, pickup.y - 3, 18, 6);
-            }
-            ctx.restore();
-        }
-        function drawClickEnats() {
-            if (!clickEnatsActive) return;
-            ctx.save();
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillStyle = 'rgba(16, 12, 4, 0.86)';
-            ctx.strokeStyle = 'rgba(255, 210, 80, 0.9)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.roundRect(canvas.width / 2 - 122, 48, 244, 32, 8);
-            ctx.fill();
-            ctx.stroke();
-            ctx.font = '700 15px Arial, sans-serif';
-            ctx.fillStyle = '#ffe08a';
-            ctx.fillText('CLICK ENATS', canvas.width / 2 - 38, 64);
-            ctx.font = '700 15px Arial, sans-serif';
-            ctx.fillStyle = '#ffffff';
-            ctx.fillText(`${Math.ceil(clickEnatsTimeLeft / 1000)} SEC`, canvas.width / 2 + 62, 64);
-            ctx.beginPath();
-            for (let i = 0; i < clickEnats.length - 1; i++) {
-                const start = clickEnats[i];
-                const end = clickEnats[i + 1];
-                if (i === 0) ctx.moveTo(start.x, start.y);
-                ctx.lineTo(end.x, end.y);
-            }
-            ctx.strokeStyle = 'rgba(255, 210, 80, 0.9)';
-            ctx.lineWidth = 3;
-            ctx.shadowBlur = 12;
-            ctx.shadowColor = '#ffd250';
-            ctx.stroke();
-            ctx.shadowBlur = 0;
-            for (let i = 0; i < clickEnats.length; i++) {
-                const target = clickEnats[i];
-                ctx.beginPath();
-                ctx.arc(target.x, target.y, 19, 0, Math.PI * 2);
-                ctx.strokeStyle = target.hit ? 'rgba(255, 255, 255, 0.7)' : 'rgba(255, 210, 80, 0.95)';
-                ctx.lineWidth = 3;
-                ctx.shadowBlur = target.hit ? 8 : 14;
-                ctx.shadowColor = target.hit ? 'white' : '#ffd250';
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.arc(target.x, target.y, 7, 0, Math.PI * 2);
-                ctx.fillStyle = target.hit ? 'rgba(255, 255, 255, 0.75)' : 'rgba(255, 210, 80, 0.8)';
-                ctx.fill();
-                ctx.shadowBlur = 0;
-                ctx.fillStyle = 'white';
-                ctx.fillText(String(i + 1), target.x, target.y + 5);
-            }
-            ctx.restore();
-        }
-        // audio engine (was compacted by ai)
-        let c,e=new Audio('Rift-breaker-tds.mp3'),source,analyser,a=(m,t=0)=>{e.pause();e.currentTime=t;if(m)e.play()};window.addEventListener('click',()=>{if(!c){c=new AudioContext();source=c.createMediaElementSource(e);analyser=c.createAnalyser();analyser.fftSize=256;source.connect(analyser).connect(c.destination);if(e.dataset.q)a(1)}},{once:true});const Music={play:()=>!c?e.dataset.q=1:(c.resume(),e.play()),pause:()=>e.pause(),stop:()=>a(0),restart:()=>a(1)};
-        // play music on first click
-        window.addEventListener('mousedown',()=>{Music.play()},{once:false});
-    </script>
-    <script>   
-        // setup the game canvas
-        const canvas = document.getElementById('gameCanvas');
+    <canvas id="visualizer" width="800" height="600"></canvas>
+    <div class="controls">
+        <label class="upload-label">
+            Upload audio
+            <input id="audioUpload" type="file" accept="audio/*">
+        </label>
+        <label class="color-label">
+            Visualizer color
+            <input id="colorPicker" type="color" value="#ff7500">
+        </label>
+        <p id="audioName">Choose an audio file to begin</p>
+    </div>
+    <script>
+        const canvas = document.getElementById('visualizer');
         const ctx = canvas.getContext('2d');
-        randomLaserAttack();
-        const player = {
-            x: canvas.width / 2,
-            y: canvas.height / 2,
-            size: 20,
-            color: 'white',
-            hp: 3,
-            maxHp: 3,
-            invulnerable: 0,
-            vx: 0,
-            vy: 0,
-            dashCooldown: 0,
-            dashTimer: 0
-        };
-        let gameOver = false;
-        clickEnatsNextAt = 120000;
-        const movementmulti = 4;
-        const acceleration = 0.8;
-        const maxSpeed = 8;
-        const friction = 0.82;
-        const dashSpeed = 65;
-        const dashDuration = 140;
-        const dashCooldownTime = 450;
-        const keys = {'w': false, 'a': false, 's': false, 'd': false, ' ': false};
-        let dashRequested = false;
-        let clickEnatsSpaceRequested = false;
-        document.addEventListener('keydown', (e) => {
-            const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-            if (gameOver && (key === 'Enter' || key === 'r')) {
-                restartGame();
-                return;
-            }
-            if (Object.hasOwn(keys, key)) keys[key] = true;
-            if (key === ' ' && !e.repeat) {
-                dashRequested = true;
-                clickEnatsSpaceRequested = true;
-            }
-        });
-        document.addEventListener('keyup', (e) => {
-            const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-            if (Object.hasOwn(keys, key)) keys[key] = false;
-        });
-        function clearKeys() {
-            Object.keys(keys).forEach((key) => { keys[key] = false; });
-            dashRequested = false;
-            clickEnatsSpaceRequested = false;
-        }
-        window.addEventListener('blur', clearKeys);
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) clearKeys();
-        });
-        function updatePlayer(delta) {
-            const frameScale = delta / 16.67;
-            player.invulnerable = Math.max(0, player.invulnerable - delta);
-            let directionX = 0;
-            let directionY = 0;
-            if (keys['w']) directionY -= 1;
-            if (keys['s']) directionY += 1;
-            if (keys['a']) directionX -= 1;
-            if (keys['d']) directionX += 1;
-
-            const directionLength = Math.hypot(directionX, directionY) || 1;
-            directionX /= directionLength;
-            directionY /= directionLength;
-
-            player.vx += directionX * acceleration * frameScale;
-            player.vy += directionY * acceleration * frameScale;
-            const speed = Math.hypot(player.vx, player.vy);
-            if (speed > maxSpeed) {
-                player.vx = (player.vx / speed) * maxSpeed;
-                player.vy = (player.vy / speed) * maxSpeed;
-            }
-
-            if (dashRequested && player.dashCooldown <= 0 && (directionX || directionY)) {
-                player.vx += directionX * dashSpeed;
-                player.vy += directionY * dashSpeed;
-                player.dashCooldown = dashCooldownTime;
-                player.dashTimer = dashDuration;
-            }
-            dashRequested = false;
-            player.dashCooldown = Math.max(0, player.dashCooldown - delta);
-            player.dashTimer = Math.max(0, player.dashTimer - delta);
-
-            player.x += player.vx * frameScale;
-            player.y += player.vy * frameScale;
-            const frictionScale = Math.pow(friction, frameScale);
-            player.vx *= frictionScale;
-            player.vy *= frictionScale;
-
-            // keep player inside bounds
-            if (player.x <= 0 || player.x >= canvas.width - player.size) player.vx = 0;
-            if (player.y <= 0 || player.y >= canvas.height - player.size) player.vy = 0;
-            player.x = Math.max(0, Math.min(canvas.width - player.size, player.x));
-            player.y = Math.max(0, Math.min(canvas.height - player.size, player.y));
-        }
-        function drawPlayer() {
-            if (player.invulnerable > 0 && Math.floor(player.invulnerable / 80) % 2 === 0) return;
-            const playerColor = player.dashTimer > 0 ? 'orange' : player.color;
-            ctx.shadowBlur = 18;
-            ctx.shadowColor = playerColor;
-            ctx.fillStyle = playerColor;
-            ctx.fillRect(player.x, player.y, player.size, player.size);
-            ctx.shadowBlur = 0;
-        }
-        function drawHeart(x, y, size, filled) {
-            const top = y - size * 0.25;
-            ctx.beginPath();
-            ctx.moveTo(x, y + size * 0.45);
-            ctx.bezierCurveTo(x - size * 0.7, y - size * 0.05, x - size * 0.55, top - size * 0.45, x, top);
-            ctx.bezierCurveTo(x + size * 0.55, top - size * 0.45, x + size * 0.7, y - size * 0.05, x, y + size * 0.45);
-            ctx.fillStyle = filled ? 'rgba(255, 75, 85, 0.62)' : 'rgba(255, 255, 255, 0.12)';
-            ctx.strokeStyle = 'rgba(255, 150, 150, 0.7)';
-            ctx.lineWidth = 2;
-            ctx.fill();
-            ctx.stroke();
-        }
-        function drawHealth() {
-            const heartSize = 22;
-            const spacing = 34;
-            const startX = canvas.width / 2 - (player.maxHp - 1) * spacing / 2;
-            ctx.save();
-            ctx.globalAlpha = 0.8;
-            for (let i = 0; i < player.maxHp; i++) {
-                drawHeart(startX + i * spacing, 30, heartSize, i < player.hp);
-            }
-            ctx.restore();
-        }
-        function restartGame() {
-            player.x = canvas.width / 2;
-            player.y = canvas.height / 2;
-            player.hp = player.maxHp;
-            player.invulnerable = 0;
-            player.vx = 0;
-            player.vy = 0;
-            player.dashCooldown = 0;
-            player.dashTimer = 0;
-            lasers.length = 0;
-            laserWarnings.length = 0;
-            clickEnats.length = 0;
-            clickEnatsActive = false;
-            clickEnatsTimeLeft = 0;
-            clickEnatsNextAt = 120000;
-            regenerationPickups.length = 0;
-            nextRegenerationAt = 30000;
-            trail.length = 0;
-            gameOver = false;
-            gameTime = 0;
-            clearKeys();
-            Music.restart();
-        }
-        function drawGameOver() {
-            ctx.save();
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.72)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.shadowBlur = 20;
-            ctx.shadowColor = 'red';
-            ctx.fillStyle = '#ff4b55';
-            ctx.font = 'bold 58px Arial, sans-serif';
-            ctx.fillText('YOU DIED!', canvas.width / 2, canvas.height / 2 - 28);
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-            ctx.font = '18px Arial, sans-serif';
-            ctx.fillText('PRESS ENTER OR R TO RESTART', canvas.width / 2, canvas.height / 2 + 36);
-            ctx.restore();
-        }
-        const trail = [];
-        function updateTrail() {
-            trail.push({
-                x: player.x + player.size / 2,
-                y: player.y + player.size / 2,
-                dashing: player.dashTimer > 0
-            });
-            if (trail.length > 32) trail.shift();
-        }
-        function drawTrail() {
-            if (trail.length < 2) return;
-
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            ctx.lineWidth = player.size * 0.75;
-
-            for (let i = 1; i < trail.length; i++) {
-                const start = trail[i - 1];
-                const end = trail[i];
-                const opacity = (i / trail.length) * (end.dashing ? 0.45 : 0.3);
-
-                ctx.beginPath();
-                ctx.moveTo(start.x, start.y);
-                ctx.lineTo(end.x, end.y);
-                const trailColor = end.dashing ? `255, 165, 0` : `255, 255, 255`;
-                ctx.strokeStyle = `rgba(${trailColor}, ${opacity})`;
-                ctx.shadowBlur = end.dashing ? 16 : 10;
-                ctx.shadowColor = end.dashing ? 'orange' : 'rgba(255, 255, 255, 0.7)';
-                ctx.stroke();
-            }
-            ctx.shadowBlur = 0;
-        }
-        let lastTime = performance.now();
-        function gameLoop(timestamp) {
-            const delta = Math.min(timestamp - lastTime, 50);
-            lastTime = timestamp;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            if (!gameOver) {
-                gameTime += delta;
-                updateClickEnats(delta);
-                if (getSongTime() >= clickEnatsNextAt) randomClickEnatsAttack();
-                updateRegenerationPickups(delta);
-                updatePlayer(delta);
-                updateLasers(delta);
-                updateTrail();
-            }
-            drawVisualizer();
-            drawLaserWarnings();
-            drawLasers();
-            drawClickEnats();
-            drawRegenerationPickups();
-            drawTrail();
-            drawPlayer();
-            drawHealth();
-            if (gameOver) drawGameOver();
-            requestAnimationFrame(gameLoop);
-        }
-        requestAnimationFrame(gameLoop);
-
-        // background music visualizer (blured as canvas background which works in unison with the existing audio engine)
+        const audio = new Audio();
+        const audioUpload = document.getElementById('audioUpload');
+        const colorPicker = document.getElementById('colorPicker');
+        const audioName = document.getElementById('audioName');
         const bufferLength = 128;
         const dataArray = new Uint8Array(bufferLength);
+        let audioContext;
+        let analyser;
+        let audioUrl;
+
+        function startAudio() {
+            if (!audioContext) {
+                audioContext = new AudioContext();
+                const source = audioContext.createMediaElementSource(audio);
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 256;
+                source.connect(analyser).connect(audioContext.destination);
+            }
+            audioContext.resume();
+            if (audio.src) audio.play();
+        }
+
+        window.addEventListener('mousedown', startAudio);
+        window.addEventListener('touchstart', startAudio, { passive: true });
+
+        audioUpload.addEventListener('change', () => {
+            const [file] = audioUpload.files;
+            if (!file) return;
+            if (audioUrl) URL.revokeObjectURL(audioUrl);
+            audioUrl = URL.createObjectURL(file);
+            audio.src = audioUrl;
+            audio.load();
+            audioName.textContent = file.name;
+            startAudio();
+        });
+
+        function pointOnFrame(distance, inset, width, height, radius) {
+            const straightWidth = width - radius * 2;
+            const straightHeight = height - radius * 2;
+            const perimeter = straightWidth * 2 + straightHeight * 2 + Math.PI * radius * 2;
+            let remaining = distance % perimeter;
+            const quarterArc = Math.PI * radius / 2;
+
+            if (remaining <= straightWidth) {
+                return { x: inset + radius + remaining, y: inset };
+            }
+            remaining -= straightWidth;
+            if (remaining <= quarterArc) {
+                const angle = -Math.PI / 2 + remaining / radius;
+                return {
+                    x: inset + width - radius + Math.cos(angle) * radius,
+                    y: inset + radius + Math.sin(angle) * radius
+                };
+            }
+            remaining -= quarterArc;
+            if (remaining <= straightHeight) {
+                return { x: inset + width, y: inset + radius + remaining };
+            }
+            remaining -= straightHeight;
+            if (remaining <= quarterArc) {
+                const angle = remaining / radius;
+                return {
+                    x: inset + width - radius + Math.cos(angle) * radius,
+                    y: inset + height - radius + Math.sin(angle) * radius
+                };
+            }
+            remaining -= quarterArc;
+            if (remaining <= straightWidth) {
+                return { x: inset + width - radius - remaining, y: inset + height };
+            }
+            remaining -= straightWidth;
+            if (remaining <= quarterArc) {
+                const angle = Math.PI / 2 + remaining / radius;
+                return {
+                    x: inset + radius + Math.cos(angle) * radius,
+                    y: inset + height - radius + Math.sin(angle) * radius
+                };
+            }
+            remaining -= quarterArc;
+            if (remaining <= straightHeight) {
+                return { x: inset, y: inset + height - radius - remaining };
+            }
+            const angle = Math.PI + remaining / radius;
+            return {
+                x: inset + radius + Math.cos(angle) * radius,
+                y: inset + radius + Math.sin(angle) * radius
+            };
+        }
+
         function drawVisualizer() {
-            if (!analyser) return;
-            analyser.getByteFrequencyData(dataArray);
-            const progress = e.duration ? Math.min(e.currentTime / e.duration, 1) : 0;
-            const barColor = `rgb(255, ${Math.round(165 * (1 - progress))}, 0)`;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (analyser) {
+                analyser.getByteFrequencyData(dataArray);
+            }
+
+            const barColor = colorPicker.value;
             const inset = 0;
             const radius = Math.min(18, canvas.width / 4, canvas.height / 4);
             const width = canvas.width - inset * 2;
@@ -534,66 +198,46 @@
             const minimumDepth = 10;
             const barCount = 128;
             const barsPerSide = barCount / 4;
-            const pointOnFrame = (distance) => {
-                let remaining = distance % perimeter;
-                const top = straightWidth;
-                const topRight = top + Math.PI * radius / 2;
-                const right = topRight + straightHeight;
-                const bottomRight = right + Math.PI * radius / 2;
-                const bottom = bottomRight + straightWidth;
-                const bottomLeft = bottom + Math.PI * radius / 2;
-                const left = bottomLeft + straightHeight;
-                const topLeft = left + Math.PI * radius / 2;
-
-                if (remaining <= top) return { x: inset + radius + remaining, y: inset };
-                remaining -= top;
-                if (remaining <= Math.PI * radius / 2) {
-                    const angle = -Math.PI / 2 + remaining / radius;
-                    return { x: inset + width - radius + Math.cos(angle) * radius, y: inset + radius + Math.sin(angle) * radius };
-                }
-                remaining -= Math.PI * radius / 2;
-                if (remaining <= straightHeight) return { x: inset + width, y: inset + radius + remaining };
-                remaining -= straightHeight;
-                if (remaining <= Math.PI * radius / 2) {
-                    const angle = remaining / radius;
-                    return { x: inset + width - radius + Math.cos(angle) * radius, y: inset + height - radius + Math.sin(angle) * radius };
-                }
-                remaining -= Math.PI * radius / 2;
-                if (remaining <= straightWidth) return { x: inset + width - radius - remaining, y: inset + height };
-                remaining -= straightWidth;
-                if (remaining <= Math.PI * radius / 2) {
-                    const angle = Math.PI / 2 + remaining / radius;
-                    return { x: inset + radius + Math.cos(angle) * radius, y: inset + height - radius + Math.sin(angle) * radius };
-                }
-                remaining -= Math.PI * radius / 2;
-                if (remaining <= straightHeight) return { x: inset, y: inset + height - radius - remaining };
-                remaining -= straightHeight;
-                const angle = Math.PI + remaining / radius;
-                return { x: inset + radius + Math.cos(angle) * radius, y: inset + radius + Math.sin(angle) * radius };
-            };
 
             ctx.beginPath();
             for (let i = 0; i < barCount; i++) {
-                const start = pointOnFrame(i * perimeter / barCount);
-                const end = pointOnFrame((i + 1) * perimeter / barCount);
+                const start = pointOnFrame(i * perimeter / barCount, inset, width, height, radius);
+                const end = pointOnFrame((i + 1) * perimeter / barCount, inset, width, height, radius);
                 const patternIndex = i % barsPerSide;
-                const signal = (dataArray[patternIndex] + dataArray[patternIndex + barsPerSide] + dataArray[patternIndex + barsPerSide * 2] + dataArray[patternIndex + barsPerSide * 3]) / 4;
-                const depth = minimumDepth + (signal / 255) * barDepth;
-                const startLength = Math.hypot(start.x - canvas.width / 2, start.y - canvas.height / 2) || 1;
-                const endLength = Math.hypot(end.x - canvas.width / 2, end.y - canvas.height / 2) || 1;
-                const startInner = { x: start.x + (canvas.width / 2 - start.x) / startLength * depth, y: start.y + (canvas.height / 2 - start.y) / startLength * depth };
-                const endInner = { x: end.x + (canvas.width / 2 - end.x) / endLength * depth, y: end.y + (canvas.height / 2 - end.y) / endLength * depth };
+                const signal = analyser
+                    ? (dataArray[patternIndex] + dataArray[patternIndex + barsPerSide] +
+                        dataArray[patternIndex + barsPerSide * 2] + dataArray[patternIndex + barsPerSide * 3]) / 4
+                    : 0;
+                const depth = minimumDepth + signal / 255 * barDepth;
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+                const startLength = Math.hypot(start.x - centerX, start.y - centerY) || 1;
+                const endLength = Math.hypot(end.x - centerX, end.y - centerY) || 1;
+                const startInner = {
+                    x: start.x + (centerX - start.x) / startLength * depth,
+                    y: start.y + (centerY - start.y) / startLength * depth
+                };
+                const endInner = {
+                    x: end.x + (centerX - end.x) / endLength * depth,
+                    y: end.y + (centerY - end.y) / endLength * depth
+                };
+
                 ctx.moveTo(start.x, start.y);
                 ctx.lineTo(end.x, end.y);
                 ctx.lineTo(endInner.x, endInner.y);
                 ctx.lineTo(startInner.x, startInner.y);
                 ctx.closePath();
             }
+
             ctx.fillStyle = barColor;
             ctx.shadowBlur = 18;
             ctx.shadowColor = barColor;
             ctx.fill();
             ctx.shadowBlur = 0;
+            requestAnimationFrame(drawVisualizer);
         }
+
+        drawVisualizer();
     </script>
 </body>
+</html>
